@@ -10,7 +10,15 @@ if [[ ! -d /opt/africa-exchange/.git ]]; then
 fi
 cd /opt/africa-exchange
 git pull --ff-only origin main
-TLS_EMAIL="$tls_email" ansible-playbook -i 'localhost,' -c local ansible/deploy.yml -e 'tls_email={{ lookup("env", "TLS_EMAIL") }}'
+TLS_EMAIL="$tls_email" ansible-playbook -i ansible/inventory.local.ini ansible/deploy.yml -e 'tls_email={{ lookup("env", "TLS_EMAIL") }}'
+getent passwd africa-exchange >/dev/null || { echo 'Deployment did not create the service user; stopping.' >&2; exit 1; }
+systemctl is-active --quiet africa-exchange || { echo 'Africa Exchange service is not running; stopping.' >&2; exit 1; }
+python3 - <<'CHECK'
+import json, urllib.request
+with urllib.request.urlopen('https://exchange.africandroid.world/api/health', timeout=20) as response:
+    if response.status != 200 or json.load(response).get('ok') is not True:
+        raise SystemExit('Public HTTPS health check failed')
+CHECK
 read -r -p 'Super admin email: ' admin_email
 runuser -u africa-exchange -- env DATABASE_PATH=/var/lib/africa-exchange/exchange.db python3 server.py --admin-email "$admin_email"
 echo 'Deployment complete: https://exchange.africandroid.world/'
