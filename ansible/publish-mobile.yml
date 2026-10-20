@@ -1,0 +1,41 @@
+---
+- name: Publish verified signed APK to Exchange and Apps Store
+  hosts: exchange
+  become: true
+  tasks:
+    - name: Require operator-selected APK and existing Apps Store web root
+      ansible.builtin.assert:
+        that:
+          - apk_path is defined
+          - apps_store_root is defined
+    - name: Verify APK signature locally
+      ansible.builtin.command: apksigner verify --verbose {{ apk_path }}
+      delegate_to: localhost
+      become: false
+      changed_when: false
+    - name: Publish on Exchange
+      ansible.builtin.copy:
+        src: '{{ apk_path }}'
+        dest: /opt/africa-exchange/static/app.apk
+        mode: '0644'
+    - name: Create store download directory
+      ansible.builtin.file:
+        path: '{{ apps_store_root }}/downloads'
+        state: directory
+        mode: '0755'
+    - name: Publish store APK
+      ansible.builtin.copy:
+        src: '{{ apk_path }}'
+        dest: '{{ apps_store_root }}/downloads/africa-exchange.apk'
+        mode: '0644'
+    - name: Write listing for store import without replacing existing catalog
+      ansible.builtin.copy:
+        dest: '{{ apps_store_root }}/downloads/africa-exchange.json'
+        content: '{"id":"africa-exchange","name":"Africa Exchange","slogan":"Africa’s currencies. One clear view.","website":"https://exchange.africandroid.world/","download":"/downloads/africa-exchange.apk","icon":"https://exchange.africandroid.world/logo.png"}'
+    - name: Verify both downloads
+      ansible.builtin.uri:
+        url: '{{ item }}'
+        method: HEAD
+      loop:
+        - https://exchange.africandroid.world/app.apk
+        - https://africanappsstore.space/downloads/africa-exchange.apk

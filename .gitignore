@@ -1,0 +1,7 @@
+data/
+__pycache__/
+*.apk
+*.jks
+.env
+mobile/.gradle/
+mobile/**/build/

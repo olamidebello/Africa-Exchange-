@@ -1,0 +1,118 @@
+---
+- name: Deploy Africa Exchange on Olamidepanel host
+  hosts: exchange
+  become: true
+  vars:
+    exchange_domain: exchange.africandroid.world
+    exchange_port: 18821
+    exchange_root: /opt/africa-exchange
+    exchange_ref: main
+    exchange_repo: https://github.com/olamidebello/Africa-Exchange-.git
+  tasks:
+    - name: Protect existing Africa Jobs domain
+      ansible.builtin.assert:
+        that: exchange_domain != 'jobs.africandroid.world'
+        fail_msg: Africa Jobs already owns this domain. Use exchange.africandroid.world.
+    - name: Install runtime and gateway
+      ansible.builtin.apt:
+        name: [git, python3, nginx, certbot, python3-certbot-nginx]
+        update_cache: true
+    - name: Create service identity
+      ansible.builtin.user:
+        name: africa-exchange
+        system: true
+        shell: /usr/sbin/nologin
+    - name: Pull application source
+      ansible.builtin.git:
+        repo: '{{ exchange_repo }}'
+        dest: '{{ exchange_root }}'
+        version: '{{ exchange_ref }}'
+        force: false
+      notify: Restart exchange
+    - name: Create durable data directory
+      ansible.builtin.file:
+        path: /var/lib/africa-exchange
+        state: directory
+        owner: africa-exchange
+        group: africa-exchange
+        mode: '0700'
+    - name: Initialize database
+      ansible.builtin.command: python3 {{ exchange_root }}/server.py --admin-email {{ admin_email }}
+      become_user: africa-exchange
+      environment:
+        DATABASE_PATH: /var/lib/africa-exchange/exchange.db
+        ADMIN_PASSWORD: '{{ admin_password }}'
+      no_log: true
+      when: admin_email is defined and admin_password is defined
+    - name: Install service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/africa-exchange.service
+        content: |
+          [Unit]
+          Description=Africa Exchange
+          After=network.target
+          [Service]
+          User=africa-exchange
+          WorkingDirectory={{ exchange_root }}
+          Environment=DATABASE_PATH=/var/lib/africa-exchange/exchange.db
+          Environment=PUBLIC_URL=https://{{ exchange_domain }}
+          ExecStart=/usr/bin/python3 {{ exchange_root }}/server.py --port {{ exchange_port }}
+          Restart=on-failure
+          NoNewPrivileges=true
+          ProtectSystem=strict
+          ReadWritePaths=/var/lib/africa-exchange
+          PrivateTmp=true
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart exchange
+    - name: Enable application
+      ansible.builtin.systemd:
+        name: africa-exchange
+        enabled: true
+        state: started
+        daemon_reload: true
+    - name: Install HTTP gateway only when absent (preserve certbot TLS)
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/africa-exchange
+        force: false
+        content: |
+          server {
+            listen 80;
+            server_name {{ exchange_domain }};
+            client_max_body_size 32k;
+            location / { proxy_pass http://127.0.0.1:{{ exchange_port }}; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }
+          }
+    - name: Enable gateway
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/africa-exchange
+        dest: /etc/nginx/sites-enabled/africa-exchange
+        state: link
+    - name: Validate nginx
+      ansible.builtin.command: nginx -t
+      changed_when: false
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+    - name: Apply app restart before checks
+      ansible.builtin.meta: flush_handlers
+    - name: Check application
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ exchange_port }}/api/health
+        return_content: true
+    - name: Issue certificate after DNS points at this host
+      ansible.builtin.command: certbot --nginx --non-interactive --agree-tos --redirect -m {{ tls_email }} -d {{ exchange_domain }}
+      when: tls_email is defined
+      register: tls_result
+      changed_when: "'Successfully received certificate' in tls_result.stdout"
+    - name: Verify public HTTPS
+      ansible.builtin.uri:
+        url: https://{{ exchange_domain }}/api/health
+        validate_certs: true
+      when: tls_email is defined
+  handlers:
+    - name: Restart exchange
+      ansible.builtin.systemd:
+        name: africa-exchange
+        state: restarted
+        daemon_reload: true

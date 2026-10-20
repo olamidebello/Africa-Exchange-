@@ -1,0 +1,8 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'world.africandroid.exchange'
+ compileSdk 35
+ defaultConfig { applicationId 'world.africandroid.exchange'; minSdk 26; targetSdk 35; versionCode 1; versionName '1.0.0' }
+ signingConfigs { release { storeFile file(System.getenv('ANDROID_KEYSTORE') ?: 'release.jks'); storePassword System.getenv('ANDROID_STORE_PASSWORD'); keyAlias System.getenv('ANDROID_KEY_ALIAS'); keyPassword System.getenv('ANDROID_KEY_PASSWORD') } }
+ buildTypes { release { signingConfig signingConfigs.release } }
+}

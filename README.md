@@ -1,3 +1,51 @@
 # Africa Exchange
 
-Implementation is being prepared for exchange.africandroid.world.
+**Africa’s currencies. One clear view.**
+
+Target: https://exchange.africandroid.world/ on the Olamidepanel server. Africa Jobs is deliberately protected from overwrite.
+
+## Run
+
+Python 3.11+, no third-party runtime dependencies:
+
+```sh
+python3 server.py --admin-email you@example.com
+python3 server.py
+python3 -m unittest discover -s tests -v
+```
+
+Admin creation prompts for a 16+ character password; no default credentials. Open http://127.0.0.1:18821. Production uses an HTTPS reverse proxy. DATABASE_PATH selects persistent SQLite storage. PUBLIC_URL must match the external HTTPS origin.
+
+## Deploy on Olamidepanel server
+
+Point exchange.africandroid.world at the hosting server. Review existing DNS and certificates first. Run on that host, or over SSH with an Ansible inventory:
+
+```sh
+ansible-playbook -i ansible/inventory.example ansible/deploy.yml -e tls_email=YOUR_EMAIL
+```
+
+Create the administrator interactively on the server:
+
+```sh
+sudo -u africa-exchange DATABASE_PATH=/var/lib/africa-exchange/exchange.db python3 /opt/africa-exchange/server.py --admin-email YOUR_EMAIL
+```
+
+This installs a dedicated systemd service, loopback port 18821 and Nginx virtual host. Certbot runs only with tls_email supplied. Existing TLS configuration is preserved. No unknown Olamidepanel inventory schema is modified; register the domain/service in the panel's Hosting Domains interface after deployment.
+
+## Implemented
+
+Source-labelled buy/sell market quotes, search/filter, CSV export, per-source history, reversible converter, iframe converter embed, registration/login/logout, private sessions, personal watchlists, target-rate records, comments/support records, tenant-separated work orders and applications, super admin rate publication, tenant creation, membership management and audit log. Tenant assignment is controlled by super admin; self-registration joins the default tenant. Tenant admins can review their tenant records. Terms, privacy and copyright pages are included.
+
+No sample market prices are presented as live data. Publish verified quotes through super admin. Target-rate entries are saved records; no automatic notification delivery exists. Work orders support posting and applications only. This is an initial implementation, not complete NGN Rates or Field Nation parity. No automatic feed ingestion, payment/escrow, dispatch, chat, background checks, password-reset email, charts, automatic alert evaluation, billing, tenancy subdomains or comprehensive production abuse controls is included yet. Legal text should be adapted to the operator's actual legal identity, jurisdiction and retention policy before public launch.
+
+## Android and Apps Store
+
+Native Android WebView client loads the HTTPS production site. The same master logo is used for website, hero, favicon and launcher icon. Use GitHub Actions “Signed Android release” after configuring persistent signing secrets: ANDROID_KEYSTORE_BASE64, ANDROID_STORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Never commit a signing key. Workflow builds a signed release and creates a GitHub release. Android SDK / JDK17 / Gradle8.9 required for local builds.
+
+Download and verify the release APK, then run:
+
+```sh
+ansible-playbook -i ansible/inventory.example ansible/publish-mobile.yml -e apk_path=/ABSOLUTE/PATH/app-release.apk -e apps_store_root=/VERIFIED/STORE/WEBROOT
+```
+
+The publication playbook verifies the signature using local apksigner, copies the APK to both hosts' web roots (assuming same hosting server), supplies an additive JSON listing for catalog import, and checks downloads. Existing store catalogs are not overwritten. Catalog UI import requires inspection of the real Apps Store repository/schema. The website download button remains hidden until an APK exists. A source checkout alone does not mean deployment, an APK build or store listing is complete.
