@@ -1,0 +1,42 @@
+---
+- name: Enable operator-authorized hourly rate imports
+  hosts: exchange
+  become: true
+  tasks:
+    - name: Require an HTTPS feed without embedded credentials
+      ansible.builtin.assert:
+        that:
+          - rate_feed_url is defined
+          - rate_feed_url is match('^https://[A-Za-z0-9.-]+/[^\s]*$')
+    - name: Install daily feed service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/africa-exchange-rates.service
+        content: |
+          [Unit]
+          Description=Import authorized Africa Exchange quote feed
+          [Service]
+          Type=oneshot
+          User=africa-exchange
+          Environment=DATABASE_PATH=/var/lib/africa-exchange/exchange.db
+          ExecStart=/usr/bin/python3 /opt/africa-exchange/scripts/import-rates.py {{ rate_feed_url }}
+          NoNewPrivileges=true
+          ProtectSystem=strict
+          ReadWritePaths=/var/lib/africa-exchange
+    - name: Install import timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/africa-exchange-rates.timer
+        content: |
+          [Unit]
+          Description=Refresh authorized exchange feed hourly
+          [Timer]
+          OnCalendar=hourly
+          RandomizedDelaySec=300
+          Persistent=true
+          [Install]
+          WantedBy=timers.target
+    - name: Enable timer
+      ansible.builtin.systemd:
+        name: africa-exchange-rates.timer
+        enabled: true
+        state: started
+        daemon_reload: true

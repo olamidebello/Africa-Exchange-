@@ -36,7 +36,7 @@ This installs a dedicated systemd service, loopback port 18821 and Nginx virtual
 
 Source-labelled buy/sell market quotes, search/filter, CSV export, per-source history, reversible converter, iframe converter embed, registration/login/logout, private sessions, personal watchlists, target-rate records, comments/support records, tenant-separated work orders and applications, super admin rate publication, tenant creation, membership management and audit log. Tenant assignment is controlled by super admin; self-registration joins the default tenant. Tenant admins can review their tenant records. Terms, privacy and copyright pages are included.
 
-No sample market prices are presented as live data. Publish verified quotes through super admin. Target-rate entries are saved records; no automatic notification delivery exists. Work orders support posting and applications only. This is an initial implementation, not complete NGN Rates or Field Nation parity. No automatic feed ingestion, payment/escrow, dispatch, chat, background checks, password-reset email, charts, automatic alert evaluation, billing, tenancy subdomains or comprehensive production abuse controls is included yet. Legal text should be adapted to the operator's actual legal identity, jurisdiction and retention policy before public launch.
+No sample market prices are presented as live data. Publish verified quotes through super admin. Target-rate entries support in-app evaluation; no automatic notification delivery exists. Work orders support posting, applications and status transitions. This is an initial implementation, not complete NGN Rates or Field Nation parity. No preconfigured live feed, payment/escrow, dispatch, chat, background checks, password-reset email, background alert delivery, billing, tenancy subdomains or comprehensive production abuse controls is included yet. Legal text should be adapted to the operator's actual legal identity, jurisdiction and retention policy before public launch.
 
 ## Android and Apps Store
 
@@ -49,3 +49,24 @@ ansible-playbook -i ansible/inventory.example ansible/publish-mobile.yml -e apk_
 ```
 
 The publication playbook verifies the signature using local apksigner, copies the APK to both hosts' web roots (assuming same hosting server), supplies an additive JSON listing for catalog import, and checks downloads. Existing store catalogs are not overwritten. Catalog UI import requires inspection of the real Apps Store repository/schema. The website download button remains hidden until an APK exists. A source checkout alone does not mean deployment, an APK build or store listing is complete.
+
+## Continued implementation
+
+Additional controls now include work-order transitions (open → assigned → in progress → completed, with cancellation before progress), in-tenant application validation, duplicate/self-application prevention, record deletion, in-app target-rate evaluation, and a sell-rate history chart. Alerts are evaluated when the user clicks **Check my alerts**; this does not send background push/email notifications.
+
+Run the guided installer **on the Olamidepanel server** after DNS is configured:
+
+```sh
+git clone https://github.com/olamidebello/Africa-Exchange-.git /opt/africa-exchange
+sudo bash /opt/africa-exchange/scripts/install.sh
+```
+
+### Authorized rate feed
+
+`scripts/import-rates.py` imports local JSON snapshots or operator-authorized HTTPS feeds. It validates the whole snapshot before inserting, rejects invalid/nonfinite rates and timestamps, and skips duplicate observations. Provider adapter format:
+
+```json
+[{"base":"USD","quote":"NGN","market":"FX market","buy":1500,"sell":1510,"source":"YOUR VERIFIED PROVIDER URL","observed":"2026-01-01T00:00:00Z"}]
+```
+
+The above is a schema example, not a current rate. The importer requires an authorized provider or an operator-produced export in this format; no feed is preconfigured or claimed live. Enable hourly refresh with `ansible/rate-feed.yml` and `rate_feed_url`. API endpoints and CSV/embed redistribution require appropriate provider permission. Existing source records remain visible if a feed fails; observation timestamps identify staleness.
