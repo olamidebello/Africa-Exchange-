@@ -24,7 +24,7 @@ Point exchange.africandroid.world at the hosting server. Review existing DNS and
 ansible-playbook -i ansible/inventory.example ansible/deploy.yml -e tls_email=YOUR_EMAIL
 ```
 
-Create the administrator interactively on the server:
+Optional manual administrator reset on the server (deployment now automatically creates the first administrator):
 
 ```sh
 sudo -u africa-exchange DATABASE_PATH=/var/lib/africa-exchange/exchange.db python3 /opt/africa-exchange/server.py --admin-email YOUR_EMAIL
@@ -54,7 +54,7 @@ The publication playbook verifies the signature using local apksigner, copies th
 
 Additional controls now include work-order transitions (open → assigned → in progress → completed, with cancellation before progress), in-tenant application validation, duplicate/self-application prevention, record deletion, in-app target-rate evaluation, and a sell-rate history chart. Alerts are evaluated when the user clicks **Check my alerts**; this does not send background push/email notifications.
 
-Run the guided installer **on the Olamidepanel server** after DNS is configured:
+Run the automatic installer **on the Olamidepanel server** after DNS is configured:
 
 ```sh
 git clone https://github.com/olamidebello/Africa-Exchange-.git /opt/africa-exchange
@@ -70,3 +70,16 @@ sudo bash /opt/africa-exchange/scripts/install.sh
 ```
 
 The above is a schema example, not a current rate. The importer requires an authorized provider or an operator-produced export in this format; no feed is preconfigured or claimed live. Enable hourly refresh with `ansible/rate-feed.yml` and `rate_feed_url`. API endpoints and CSV/embed redistribution require appropriate provider permission. Existing source records remain visible if a feed fails; observation timestamps identify staleness.
+
+## Automatic super admin provisioning
+
+The installer uses `dobcalldemo@gmail.com` as TLS contact by default (override with TLS_EMAIL). The playbook creates the first super admin with this email (override with admin_email), generates a random password, and stores credentials in `/etc/africa-exchange-admin.json` with mode 0600. It never resets existing super admins. Read that file as root, sign in, and use My workspace → Account security to set your password; all old sessions are revoked. Remove the initial credential file after securing your account. No password is committed or printed in Ansible output. Provisioning runs in the deploy playbook before application startup.
+
+```sh
+cd /opt/africa-exchange
+git pull --ff-only origin main
+sudo bash scripts/install.sh
+sudo cat /etc/africa-exchange-admin.json
+```
+
+This provisions the Africa Exchange super admin GUI. It does not create an Olamidepanel administrator or bypass existing panel authentication.

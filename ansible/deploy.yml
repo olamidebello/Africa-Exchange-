@@ -36,14 +36,21 @@
         owner: africa-exchange
         group: africa-exchange
         mode: '0700'
-    - name: Initialize database
-      ansible.builtin.command: python3 {{ exchange_root }}/server.py --admin-email {{ admin_email }}
-      become_user: africa-exchange
+    - name: Provision first super admin automatically without resetting existing accounts
+      ansible.builtin.command: python3 {{ exchange_root }}/scripts/provision-admin.py
       environment:
         DATABASE_PATH: /var/lib/africa-exchange/exchange.db
-        ADMIN_PASSWORD: '{{ admin_password }}'
+        ADMIN_EMAIL: '{{ admin_email | default("dobcalldemo@gmail.com") }}'
+        ADMIN_CREDENTIAL_FILE: /etc/africa-exchange-admin.json
+      register: provision_result
+      changed_when: (provision_result.stdout | from_json).changed
       no_log: true
-      when: admin_email is defined and admin_password is defined
+    - name: Preserve service ownership of database
+      ansible.builtin.file:
+        path: /var/lib/africa-exchange/exchange.db
+        owner: africa-exchange
+        group: africa-exchange
+        mode: '0600'
     - name: Install service
       ansible.builtin.copy:
         dest: /etc/systemd/system/africa-exchange.service
@@ -100,6 +107,10 @@
       ansible.builtin.uri:
         url: http://127.0.0.1:{{ exchange_port }}/api/health
         return_content: true
+      register: app_health
+      until: app_health.status == 200 and app_health.json.ok | default(false)
+      retries: 10
+      delay: 2
     - name: Issue certificate after DNS points at this host
       ansible.builtin.command: certbot --nginx --non-interactive --agree-tos --redirect -m {{ tls_email }} -d {{ exchange_domain }}
       when: tls_email is defined

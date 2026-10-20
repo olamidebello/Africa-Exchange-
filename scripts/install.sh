@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ $EUID -ne 0 ]]; then echo 'Run as root on the Olamidepanel hosting server.' >&2; exit 1; fi
-read -r -p 'TLS contact email: ' tls_email
+tls_email="${TLS_EMAIL:-dobcalldemo@gmail.com}"
 [[ "$tls_email" == *@* ]] || { echo 'Valid email required'; exit 1; }
 apt-get update
 apt-get install -y git ansible python3
@@ -19,6 +19,9 @@ with urllib.request.urlopen('https://exchange.africandroid.world/api/health', ti
     if response.status != 200 or json.load(response).get('ok') is not True:
         raise SystemExit('Public HTTPS health check failed')
 CHECK
-read -r -p 'Super admin email: ' admin_email
-runuser -u africa-exchange -- env DATABASE_PATH=/var/lib/africa-exchange/exchange.db python3 server.py --admin-email "$admin_email"
 echo 'Deployment complete: https://exchange.africandroid.world/'
+if [[ -f /etc/africa-exchange-admin.json ]]; then
+  echo 'Super admin login was saved privately. View it with: sudo cat /etc/africa-exchange-admin.json'
+else
+  echo 'Existing super admin credentials were preserved.'
+fi

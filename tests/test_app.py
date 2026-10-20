@@ -54,3 +54,12 @@ class WorkflowTests(Integration):
   with server.db() as c:c.execute("INSERT INTO rates(base,quote,market,buy,sell,source,observed,created) VALUES('USD','NGN','FX market',1590,1600,'test fixture','2026-01-01T00:00:00Z',9999999999)")
   self.assertTrue(self.request('alerts',cookie=token)[1][0]['triggered'])
   self.assertEqual(self.request('records',[],token)[0],400)
+
+class PasswordTests(Integration):
+ def test_password_change_revokes_session(self):
+  self.request('register',{'email':'password@example.com','password':'before-password-long'})
+  cookie=self.request('login',{'email':'password@example.com','password':'before-password-long'})[2].split(';')[0]
+  self.assertEqual(self.request('password',{'current':'wrong','password':'after-password-long'},cookie)[0],403)
+  self.assertEqual(self.request('password',{'current':'before-password-long','password':'after-password-long'},cookie)[0],200)
+  self.assertIsNone(self.request('me',cookie=cookie)[1])
+  self.assertEqual(self.request('login',{'email':'password@example.com','password':'after-password-long'})[0],200)

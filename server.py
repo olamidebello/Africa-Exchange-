@@ -69,6 +69,13 @@ class App(SimpleHTTPRequestHandler):
      token=secrets.token_urlsafe(32); c.execute('INSERT INTO sessions VALUES(?,?,?)',(token,account['id'],time.time()+43200)); c.commit()
      b=b'{"ok":true}';self.send_response(200);self.send_header('Set-Cookie','ax='+token+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200'+('; Secure' if os.getenv('PUBLIC_URL','').startswith('https:') else ''));self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b);return
     if not u:return self.reply({'error':'Sign in required'},401)
+    if path=='/api/password':
+     old=d.get('current','');new=d.get('password','')
+     if not isinstance(new,str) or not 16<=len(new)<=256:raise ValueError('Use 16 to 256 characters')
+     if not isinstance(old,str) or not hmac.compare_digest(u['hash'],password(old,u['salt'])):return self.reply({'error':'Current password is incorrect'},403)
+     salt=secrets.token_hex(16);c.execute('UPDATE users SET salt=?,hash=? WHERE id=?',(salt,password(new,salt),u['id']))
+     c.execute('DELETE FROM sessions WHERE user=?',(u['id'],))
+     c.execute('INSERT INTO audit(user,action,created) VALUES(?,?,?)',(u['id'],'Password changed; sessions revoked',time.time()));return self.reply({'ok':True})
     if path=='/api/logout':c.execute('DELETE FROM sessions WHERE user=?',(u['id'],));return self.reply({'ok':True})
     if path=='/api/records/update':
      record=c.execute('SELECT * FROM records WHERE id=? AND tenant=?',(int(d['id']),u['tenant'])).fetchone()
