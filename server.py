@@ -27,6 +27,7 @@ class App(SimpleHTTPRequestHandler):
   with db() as c:
    u=self.identity(c)
    if path=='/api/health': return self.reply({'ok':True})
+   if path=='/api/currencies': return self.reply(json.loads((ROOT/'currencies.json').read_text()))
    if path=='/api/rates': return self.reply([dict(r) for r in c.execute('SELECT * FROM rates ORDER BY created DESC LIMIT 500')])
    if path=='/api/me': return self.reply(({'id':u['id'],'email':u['email'],'role':u['role'],'tenant':u['tenant']} if u else None))
    if not u:return self.reply({'error':'Sign in required'},401)

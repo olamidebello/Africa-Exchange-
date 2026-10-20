@@ -1,0 +1,12 @@
+[
+  {"code":"AFR","name":"Afira","symbol":"Ⱥ","pronunciation":"Ah-FEE-rah","minor_unit_name":"cent","minor_units_per_unit":100,"decimal_places":2,"status":"proposed","description":"The name combines Africa with a new era, representing shared prosperity across the continent. The symbol’s strong A shape connects it to Africa.","example_prices":["Ⱥ10","Ⱥ250","Ⱥ1,000"]},
+  {"code":"NGN","name":"Nigerian Naira","symbol":"₦","decimal_places":2},
+  {"code":"USD","name":"US Dollar","symbol":"$","decimal_places":2},
+  {"code":"EUR","name":"Euro","symbol":"€","decimal_places":2},
+  {"code":"GBP","name":"Pound Sterling","symbol":"£","decimal_places":2},
+  {"code":"ZAR","name":"South African Rand","symbol":"R","decimal_places":2},
+  {"code":"XOF","name":"West African CFA Franc","symbol":"CFA","decimal_places":0},
+  {"code":"XAF","name":"Central African CFA Franc","symbol":"FCFA","decimal_places":0},
+  {"code":"KES","name":"Kenyan Shilling","symbol":"KSh","decimal_places":2},
+  {"code":"GHS","name":"Ghanaian Cedi","symbol":"GH₵","decimal_places":2}
+]

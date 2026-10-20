@@ -83,3 +83,7 @@ sudo cat /etc/africa-exchange-admin.json
 ```
 
 This provisions the Africa Exchange super admin GUI. It does not create an Olamidepanel administrator or bypass existing panel authentication.
+
+## Afira currency
+
+The shared currency catalogue (`GET /api/currencies`) includes Afira, proposed code AFR, symbol Ⱥ, pronunciation Ah-FEE-rah and subdivision 100 cents. Admin rate entry suggests AFR, quotes involving AFR are labelled proposed, and converter outputs use Ⱥ with two decimal places. There is no seeded or assumed AFR exchange rate. Once a sourced AFR quote is published, the existing history, CSV, watchlists, alerts, converter and mobile WebView support it.
