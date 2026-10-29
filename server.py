@@ -14,6 +14,7 @@ def init():
   c.execute('INSERT OR IGNORE INTO provider_config(id) VALUES(1)')
   c.execute("INSERT OR IGNORE INTO tenants VALUES(1,'Africa Exchange','africa-exchange')")
 class App(SimpleHTTPRequestHandler):
+ extensions_map = {**SimpleHTTPRequestHandler.extensions_map, '.apk': 'application/vnd.android.package-archive'}
  def __init__(self,*a,**kw): super().__init__(*a,directory=str(ROOT/'static'),**kw)
  def log_message(self,*a): pass
  def reply(self,data,status=200):

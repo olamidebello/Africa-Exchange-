@@ -121,3 +121,22 @@ TradeNAIRA is the only active importer. No upstream key is required. Any existin
 ## Available rates
 
 The importer now publishes available TradeNAIRA official quotes as Central bank and parallel quotes as Parallel market. These are separate records; official quotes are never labelled black-market. The default filter shows all available markets. Refresh after deploying to populate the database. Single reference values occupy both buy/sell fields because the provider supplies no spread.
+
+
+### Automated signed Android build and website/store publication
+
+Run on the existing Exchange/Apps Store server (Java 17, Python 3, unzip, network access required):
+
+```bash
+cd /opt/africa-exchange
+git pull --ff-only origin main
+apt-get update
+apt-get install -y openjdk-17-jdk-headless unzip
+STORE_ROOT="$(systemctl show africanappsstore -p WorkingDirectory --value)"
+python3 scripts/build-publish-mobile.py --store-root "$STORE_ROOT"
+systemctl restart africa-exchange
+```
+
+The command validates the existing store schema before building, installs Android SDK 35 and Gradle 8.9, creates a persistent private signing key outside Git, builds a signed release APK and AAB, verifies the APK signature, backs up the store database, copies the APK to the website, and upserts the hosted-app listing while preserving administrator visibility. If the service WorkingDirectory is blank, pass the actual existing store checkout as `--store-root`. The store database defaults to `/var/lib/africanappsstore/store.sqlite3`; override with `--store-db` when needed.
+
+Back up `/var/lib/africa-exchange-android` securely: the same signing key is required for future Android updates. Do not replace it with a different key for an already distributed package. APK: `mobile/app/build/outputs/apk/release/app-release.apk`; AAB: `mobile/app/build/outputs/bundle/release/app-release.aab`. The app requires internet and uses the existing live website and accounts. No Play Store submission is performed.
