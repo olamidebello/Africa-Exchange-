@@ -101,11 +101,11 @@
           [Install]
           WantedBy=multi-user.target
       notify: Restart exchange
-    - name: Enable application
+    - name: Restart application to load updates pulled before Ansible ran
       ansible.builtin.systemd:
         name: africa-exchange
         enabled: true
-        state: started
+        state: restarted
         daemon_reload: true
     - name: Install HTTP gateway only when absent (preserve certbot TLS)
       ansible.builtin.copy:
