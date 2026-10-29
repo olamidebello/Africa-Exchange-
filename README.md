@@ -117,3 +117,7 @@ After deployment, sign in as super admin and enable TradeNAIRA automatic refresh
 ## Active provider: TradeNAIRA
 
 TradeNAIRA is the only active importer. No upstream key is required. Any existing ABOKI_FOREX_API_KEY setting is ignored. Aboki is not called. Enable the provider in super admin settings; unavailable parallel rates are reported without substituting official rates.
+
+## Available rates
+
+The importer now publishes available TradeNAIRA official quotes as Central bank and parallel quotes as Parallel market. These are separate records; official quotes are never labelled black-market. The default filter shows all available markets. Refresh after deploying to populate the database. Single reference values occupy both buy/sell fields because the provider supplies no spread.

@@ -17,5 +17,5 @@ $('#syncprovider').onclick=async()=>{const b=$('#syncprovider');b.disabled=true;
 $('#keyform').onsubmit=async e=>{e.preventDefault();try{const r=await api('admin/keys/create',Object.fromEntries(new FormData(e.target)));$('#newkey').textContent='Copy this key now: '+r.key;await integrations()}catch(e){toast(e.message)}};
 $('#keylist').onclick=async e=>{if(!e.target.dataset.revoke)return;try{await api('admin/keys/revoke',{id:e.target.dataset.revoke});await integrations()}catch(e){toast(e.message)}};
 $('#managedrates').onclick=async e=>{if(!e.target.dataset.remove||!confirm('Remove this observation?'))return;try{await api('admin/rates/delete',{id:e.target.dataset.remove});await integrations();await load()}catch(e){toast(e.message)}};
-$('#market').value='Parallel market';
+$('#market').value='';
 api('provider-status').then(s=>$('#feedstatus').textContent='TradeNAIRA: '+s.status).catch(e=>toast(e.message));

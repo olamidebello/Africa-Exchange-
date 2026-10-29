@@ -32,3 +32,12 @@ class AbokiTests(unittest.TestCase):
   self.assertEqual(row[3:5],(1500,1510))
   payload['rateType']='official'
   with self.assertRaises(ValueError):integrations.parse_aboki(payload)
+
+class AvailableTests(unittest.TestCase):
+ def test_available_official_is_separate_market(self):
+  rows=integrations.parse_available({'official':{'USD':1350},'parallel':None,'updated':datetime.now(timezone.utc).isoformat()})
+  self.assertEqual(rows[0][2],'Central bank')
+  self.assertEqual(rows[0][4],1350)
+ def test_both_markets_preserved(self):
+  rows=integrations.parse_available({'official':{'USD':1350},'parallel':{'USD':1400},'updated':datetime.now(timezone.utc).isoformat()})
+  self.assertEqual({r[2] for r in rows},{'Central bank','Parallel market'})

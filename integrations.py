@@ -31,6 +31,15 @@ def parse_aboki(payload):
   if not math.isfinite(buy) or not 0<buy<=sell:raise ValueError('Invalid Aboki buy/sell spread')
   rows.append((*row[:3],buy,sell,ABOKI_URL,row[6]))
  return rows
+def parse_available(payload):
+ rows=[]
+ for field,market in [('official','Central bank'),('parallel','Parallel market')]:
+  quotes=payload.get(field)
+  if quotes is None:continue
+  validated=parse({'parallel':quotes,'updated':payload['updated']})
+  rows.extend((*row[:2],market,*row[3:]) for row in validated)
+ if not rows:raise ValueError('TradeNAIRA has no available rates')
+ return rows
 def fetch_rows():
  endpoint=URL
  headers={'User-Agent':'AfricaExchange/1.0'}
@@ -38,7 +47,7 @@ def fetch_rows():
   if response.url!=endpoint:raise ValueError('Unexpected provider redirect')
   raw=response.read(200001)
  if len(raw)>200000:raise ValueError('Provider response too large')
- return parse(json.loads(raw))
+ return parse_available(json.loads(raw))
 def sync():
  if not LOCK.acquire(False):return {'ok':False,'status':'Refresh already running'}
  try:
@@ -48,7 +57,8 @@ def sync():
     for row in rows:
      if not c.execute('SELECT 1 FROM rates WHERE base=? AND quote=? AND market=? AND buy=? AND sell=? AND source=? AND observed=?',row).fetchone():
       c.execute('INSERT INTO rates(base,quote,market,buy,sell,source,observed,created) VALUES(?,?,?,?,?,?,?,?)',(*row,time.time()));count+=1
-   status=f'Refreshed {count} parallel quotes from TradeNAIRA (single reference, no bid/ask spread)';ok=True
+   markets=', '.join(sorted({r[2] for r in rows}))
+   status=f'Refreshed {count} quotes from TradeNAIRA: {markets} (single reference, no bid/ask spread)';ok=True
   except Exception as error:
    status=str(error) if isinstance(error,ValueError) else 'Provider request failed; previous observations retained'
    ok=False
