@@ -87,3 +87,11 @@ This provisions the Africa Exchange super admin GUI. It does not create an Olami
 ## Afira currency
 
 The shared currency catalogue (`GET /api/currencies`) includes Afira, proposed code AFR, symbol Ⱥ, pronunciation Ah-FEE-rah and subdivision 100 cents. Admin rate entry suggests AFR, quotes involving AFR are labelled proposed, and converter outputs use Ⱥ with two decimal places. There is no seeded or assumed AFR exchange rate. Once a sourced AFR quote is published, the existing history, CSV, watchlists, alerts, converter and mobile WebView support it.
+
+## TradeNAIRA and API administration
+
+Super admin → API providers & keys controls the fixed TradeNAIRA parallel-rate provider, enables automatic refresh (15 minutes to 24 hours), displays refresh errors, and triggers manual refresh. The default public market filter is Parallel market. The provider requires no upstream API key in beta and attribution links are included. No arbitrary provider URL or secret is accepted. Null parallel data, invalid values and observations older than 48 hours are rejected; official rates are never substituted. A single reference is stored in both buy/sell fields because the provider does not supply a bid/ask spread. Existing observations retain their dates on failures.
+
+Admins can publish corrected observations, remove erroneous observations, and generate/revoke read-only client keys. Keys are shown only at creation and stored as SHA-256 hashes. Send `Authorization: Bearer KEY` to `GET /api/v1/rates`; this endpoint returns published observations, including history, not guaranteed executable or current prices. Keys do not grant administrator access. Rotate by generating a replacement, updating the client, then revoking the previous key.
+
+Deploy the updated checkout using the existing installer, restart `africa-exchange`, sign in, enable TradeNAIRA refresh, and save. Scheduling runs inside the application while the service is running. Provider settings and API keys persist in the existing database. Additional commercial providers require separate adapters and provider-specific authentication support.

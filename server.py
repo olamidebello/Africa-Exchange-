@@ -10,6 +10,8 @@ def init():
  Path(DB).parent.mkdir(parents=True,exist_ok=True)
  with db() as c:
   c.executescript('''CREATE TABLE IF NOT EXISTS tenants(id INTEGER PRIMARY KEY,name TEXT NOT NULL,slug TEXT UNIQUE NOT NULL); CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,tenant INTEGER REFERENCES tenants(id),email TEXT UNIQUE,salt TEXT,hash TEXT,role TEXT); CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user INTEGER REFERENCES users(id),expires REAL); CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY,tenant INTEGER REFERENCES tenants(id),user INTEGER REFERENCES users(id),kind TEXT,data TEXT,created REAL); CREATE TABLE IF NOT EXISTS rates(id INTEGER PRIMARY KEY,base TEXT,quote TEXT,market TEXT,buy REAL,sell REAL,source TEXT,observed TEXT,created REAL); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,user INTEGER,action TEXT,created REAL);''')
+  c.executescript('CREATE TABLE IF NOT EXISTS provider_config(id INTEGER PRIMARY KEY,enabled INTEGER DEFAULT 0,interval INTEGER DEFAULT 3600,last_attempt REAL DEFAULT 0,status TEXT DEFAULT "Not refreshed"); CREATE TABLE IF NOT EXISTS api_keys(id INTEGER PRIMARY KEY,label TEXT,hash TEXT UNIQUE,created REAL,revoked INTEGER DEFAULT 0);')
+  c.execute('INSERT OR IGNORE INTO provider_config(id) VALUES(1)')
   c.execute("INSERT OR IGNORE INTO tenants VALUES(1,'Africa Exchange','africa-exchange')")
 class App(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw): super().__init__(*a,directory=str(ROOT/'static'),**kw)
@@ -28,6 +30,11 @@ class App(SimpleHTTPRequestHandler):
    u=self.identity(c)
    if path=='/api/health': return self.reply({'ok':True})
    if path=='/api/currencies': return self.reply(json.loads((ROOT/'currencies.json').read_text()))
+   if path=='/api/v1/rates':
+    token=self.headers.get('Authorization','').removeprefix('Bearer ')
+    if not c.execute('SELECT 1 FROM api_keys WHERE hash=? AND revoked=0',(hashlib.sha256(token.encode()).hexdigest(),)).fetchone():return self.reply({'error':'Invalid API key'},401)
+    return self.reply([dict(r) for r in c.execute('SELECT * FROM rates ORDER BY created DESC LIMIT 500')])
+   if path=='/api/provider-status':return self.reply(dict(c.execute('SELECT enabled,last_attempt,status FROM provider_config WHERE id=1').fetchone()))
    if path=='/api/rates': return self.reply([dict(r) for r in c.execute('SELECT * FROM rates ORDER BY created DESC LIMIT 500')])
    if path=='/api/me': return self.reply(({'id':u['id'],'email':u['email'],'role':u['role'],'tenant':u['tenant']} if u else None))
    if not u:return self.reply({'error':'Sign in required'},401)
@@ -42,6 +49,9 @@ class App(SimpleHTTPRequestHandler):
      results.append({'id':record['id'],'pair':a['title'],'triggered':triggered,'target':target,'current':rate['sell'],'observed':rate['observed'],'source':rate['source']})
     return self.reply(results)
    if path=='/api/records':return self.reply([dict(r) for r in c.execute('SELECT * FROM records WHERE tenant=? ORDER BY id DESC',(u['tenant'],)) if r['user']==u['id'] or u['role'] in ['admin','superadmin'] or r['kind']=='job'])
+   if path=='/api/admin/integrations':
+    if u['role']!='superadmin':return self.reply({'error':'Forbidden'},403)
+    return self.reply({'provider':dict(c.execute('SELECT * FROM provider_config WHERE id=1').fetchone()),'keys':[dict(r) for r in c.execute('SELECT id,label,created,revoked FROM api_keys')], 'rates':[dict(r) for r in c.execute('SELECT * FROM rates ORDER BY created DESC LIMIT 500')]})
    if path=='/api/admin':
     if u['role']!='superadmin':return self.reply({'error':'Forbidden'},403)
     return self.reply({'tenants':[dict(r) for r in c.execute('SELECT * FROM tenants')],'users':[dict(r) for r in c.execute('SELECT id,email,role,tenant FROM users')],'audit':[dict(r) for r in c.execute('SELECT * FROM audit ORDER BY id DESC LIMIT 100')]})
@@ -111,7 +121,24 @@ class App(SimpleHTTPRequestHandler):
       if not math.isfinite(float(content.get('target',0))) or float(content['target'])<=0:raise ValueError('Positive target required')
      c.execute('INSERT INTO records(tenant,user,kind,data,created) VALUES(?,?,?,?,?)',(u['tenant'],u['id'],d['kind'],json.dumps(content),time.time()));return self.reply({'ok':True})
     if u['role']!='superadmin':return self.reply({'error':'Forbidden'},403)
-    if path=='/api/admin/rates':
+    if path=='/api/admin/provider':
+     interval=int(d.get('interval',3600))
+     if not 900<=interval<=86400:raise ValueError('Refresh interval must be 900 to 86400 seconds')
+     c.execute('UPDATE provider_config SET enabled=?,interval=? WHERE id=1',(int(bool(d.get('enabled'))),interval))
+    elif path=='/api/admin/sync':
+     c.commit()
+     import integrations
+     return self.reply(integrations.sync())
+    elif path=='/api/admin/keys/create':
+     label=str(d.get('label','')).strip()
+     if not label or len(label)>100:raise ValueError('Key name required (100 characters maximum)')
+     token='ax_'+secrets.token_urlsafe(32)
+     c.execute('INSERT INTO api_keys(label,hash,created) VALUES(?,?,?)',(label,hashlib.sha256(token.encode()).hexdigest(),time.time()))
+     c.execute('INSERT INTO audit(user,action,created) VALUES(?,?,?)',(u['id'],'API key created',time.time()))
+     return self.reply({'key':token})
+    elif path=='/api/admin/keys/revoke':c.execute('UPDATE api_keys SET revoked=1 WHERE id=?',(int(d['id']),))
+    elif path=='/api/admin/rates/delete':c.execute('DELETE FROM rates WHERE id=?',(int(d['id']),))
+    elif path=='/api/admin/rates':
      buy=float(d['buy']);sell=float(d['sell'])
      if not 0<buy<=sell<1e15:raise ValueError('Rates must be positive with sell >= buy')
      if not all(d.get(k) for k in ['base','quote','market','source','observed']):raise ValueError('Complete all rate fields')
@@ -132,4 +159,7 @@ if __name__=='__main__':
   if len(secret)<16:raise SystemExit('Admin password requires 16 characters')
   salt=secrets.token_hex(16)
   with db() as c:c.execute("INSERT INTO users(tenant,email,salt,hash,role) VALUES(1,?,?,?,'superadmin') ON CONFLICT(email) DO UPDATE SET salt=excluded.salt,hash=excluded.hash,role='superadmin'",(a.admin_email.lower(),salt,password(secret,salt)))
- else:ThreadingHTTPServer(('127.0.0.1',a.port),App).serve_forever()
+ else:
+  import integrations,threading
+  threading.Thread(target=integrations.worker,daemon=True).start()
+  ThreadingHTTPServer(('127.0.0.1',a.port),App).serve_forever()
