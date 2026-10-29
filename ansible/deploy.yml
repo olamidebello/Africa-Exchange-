@@ -90,6 +90,7 @@
           [Service]
           User=africa-exchange
           WorkingDirectory={{ exchange_root }}
+          EnvironmentFile=-/etc/africa-exchange-provider.env
           Environment=DATABASE_PATH=/var/lib/africa-exchange/exchange.db
           Environment=PUBLIC_URL=https://{{ exchange_domain }}
           ExecStart=/usr/bin/python3 {{ exchange_root }}/server.py --port {{ exchange_port }}

@@ -24,3 +24,11 @@ class AdminTests(Integration):
   self.assertNotIn(result['key'],str(self.request('admin/integrations',cookie=cookie)[1]))
   self.assertEqual(self.request('admin/keys/revoke',{'id':key['id']},cookie)[0],200)
   with server.db() as c:self.assertEqual(c.execute('SELECT revoked FROM api_keys WHERE id=?',(key['id'],)).fetchone()[0],1)
+
+class AbokiTests(unittest.TestCase):
+ def test_true_black_market_spread(self):
+  payload={'baseCurrency':'NGN','rateType':'black_market','timestamp':datetime.now(timezone.utc).isoformat(),'rates':{'USD':{'buy':1500,'sell':1510}}}
+  row=integrations.parse_aboki(payload)[0]
+  self.assertEqual(row[3:5],(1500,1510))
+  payload['rateType']='official'
+  with self.assertRaises(ValueError):integrations.parse_aboki(payload)

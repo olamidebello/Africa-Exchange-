@@ -1,5 +1,5 @@
 """Fixed-host TradeNAIRA adapter. Never substitute official for parallel rates."""
-import json,math,time,threading
+import json,math,time,threading,os
 from datetime import datetime,timezone
 from urllib.request import Request,urlopen
 import server
@@ -17,20 +17,40 @@ def parse(payload):
   if not math.isfinite(rate) or not 0<rate<1e15:raise ValueError('Invalid parallel rate')
   rows.append((code.upper(),'NGN','Parallel market',rate,rate,URL,observed.astimezone(timezone.utc).isoformat()))
  return rows
+ABOKI_URL='https://abokiforexpaid.uc.r.appspot.com/_ah/api/forex/v1/rates'
+def parse_aboki(payload):
+ if payload.get('rateType')!='black_market' or payload.get('baseCurrency')!='NGN':raise ValueError('Expected NGN black-market quotes')
+ quotes=payload.get('rates')
+ if not isinstance(quotes,dict) or not quotes:raise ValueError('No Aboki Forex quotes')
+ observed=payload.get('timestamp','')
+ rows=[]
+ for code,quote in quotes.items():
+  # Reuse currency, timestamp and freshness validation without assuming a spread.
+  row=parse({'parallel':{code:quote['sell']},'updated':observed})[0]
+  buy=float(quote['buy']);sell=float(quote['sell'])
+  if not math.isfinite(buy) or not 0<buy<=sell:raise ValueError('Invalid Aboki buy/sell spread')
+  rows.append((*row[:3],buy,sell,ABOKI_URL,row[6]))
+ return rows
+def fetch_rows():
+ key=os.getenv('ABOKI_FOREX_API_KEY','').strip()
+ endpoint=ABOKI_URL if key else URL
+ headers={'User-Agent':'AfricaExchange/1.0'}
+ if key:headers['X-API-Key']=key
+ with urlopen(Request(endpoint,headers=headers),timeout=20) as response:
+  if response.url!=endpoint:raise ValueError('Unexpected provider redirect')
+  raw=response.read(200001)
+ if len(raw)>200000:raise ValueError('Provider response too large')
+ return (parse_aboki if key else parse)(json.loads(raw))
 def sync():
  if not LOCK.acquire(False):return {'ok':False,'status':'Refresh already running'}
  try:
   try:
-   with urlopen(Request(URL,headers={'User-Agent':'AfricaExchange/1.0'}),timeout=20) as response:
-    if response.url!=URL:raise ValueError('Unexpected provider redirect')
-    raw=response.read(200001)
-   if len(raw)>200000:raise ValueError('Provider response too large')
-   rows=parse(json.loads(raw));count=0
+   rows=fetch_rows();count=0
    with server.db() as c:
     for row in rows:
      if not c.execute('SELECT 1 FROM rates WHERE base=? AND quote=? AND market=? AND buy=? AND sell=? AND source=? AND observed=?',row).fetchone():
       c.execute('INSERT INTO rates(base,quote,market,buy,sell,source,observed,created) VALUES(?,?,?,?,?,?,?,?)',(*row,time.time()));count+=1
-   status=f'Refreshed {count} parallel reference rates (single reference, no bid/ask spread provided)';ok=True
+   status=f'Refreshed {count} parallel quotes from '+('Aboki Forex (buy/sell)' if os.getenv('ABOKI_FOREX_API_KEY') else 'TradeNAIRA (single reference, no bid/ask spread)');ok=True
   except Exception as error:
    status=str(error) if isinstance(error,ValueError) else 'Provider request failed; previous observations retained'
    ok=False
