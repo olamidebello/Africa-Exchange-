@@ -114,6 +114,6 @@ The playbook pulls `main` without overwriting local changes, creates a consisten
 After deployment, sign in as super admin and enable TradeNAIRA automatic refresh in **API providers & keys**. Provider settings are preserved during subsequent deployments. A missing parallel quote remains unavailable rather than using an official rate.
 
 
-## Activate Aboki Forex black-market provider
+## Active provider: TradeNAIRA
 
-Aboki Forex is supported using its documented rates API. It requires a separately issued subscription key; no subscription is purchased by this repository. Once a valid key exists, deploy the updated service definition, then run `sudo bash /opt/africa-exchange/scripts/configure-provider.sh`. It prompts privately for the key, stores it root-only at `/etc/africa-exchange-provider.env`, enables hourly refresh and restarts the service. The key is never returned by the admin API or embedded in JavaScript. When configured, Aboki replaces TradeNAIRA as the importer source; failures retain prior observations and do not substitute official rates. Existing TradeNAIRA observations remain in history. See `https://abokiforex.app/api` for provider pricing, access and terms. Re-run the configuration script to rotate the upstream key.
+TradeNAIRA is the only active importer. No upstream key is required. Any existing ABOKI_FOREX_API_KEY setting is ignored. Aboki is not called. Enable the provider in super admin settings; unavailable parallel rates are reported without substituting official rates.

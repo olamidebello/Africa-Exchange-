@@ -32,15 +32,13 @@ def parse_aboki(payload):
   rows.append((*row[:3],buy,sell,ABOKI_URL,row[6]))
  return rows
 def fetch_rows():
- key=os.getenv('ABOKI_FOREX_API_KEY','').strip()
- endpoint=ABOKI_URL if key else URL
+ endpoint=URL
  headers={'User-Agent':'AfricaExchange/1.0'}
- if key:headers['X-API-Key']=key
  with urlopen(Request(endpoint,headers=headers),timeout=20) as response:
   if response.url!=endpoint:raise ValueError('Unexpected provider redirect')
   raw=response.read(200001)
  if len(raw)>200000:raise ValueError('Provider response too large')
- return (parse_aboki if key else parse)(json.loads(raw))
+ return parse(json.loads(raw))
 def sync():
  if not LOCK.acquire(False):return {'ok':False,'status':'Refresh already running'}
  try:
@@ -50,7 +48,7 @@ def sync():
     for row in rows:
      if not c.execute('SELECT 1 FROM rates WHERE base=? AND quote=? AND market=? AND buy=? AND sell=? AND source=? AND observed=?',row).fetchone():
       c.execute('INSERT INTO rates(base,quote,market,buy,sell,source,observed,created) VALUES(?,?,?,?,?,?,?,?)',(*row,time.time()));count+=1
-   status=f'Refreshed {count} parallel quotes from '+('Aboki Forex (buy/sell)' if os.getenv('ABOKI_FOREX_API_KEY') else 'TradeNAIRA (single reference, no bid/ask spread)');ok=True
+   status=f'Refreshed {count} parallel quotes from TradeNAIRA (single reference, no bid/ask spread)';ok=True
   except Exception as error:
    status=str(error) if isinstance(error,ValueError) else 'Provider request failed; previous observations retained'
    ok=False
