@@ -22,6 +22,30 @@
         name: africa-exchange
         system: true
         shell: /usr/sbin/nologin
+    - name: Inspect existing database
+      ansible.builtin.stat:
+        path: /var/lib/africa-exchange/exchange.db
+      register: existing_database
+    - name: Create private backup directory
+      ansible.builtin.file:
+        path: /var/backups/africa-exchange
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+    - name: Back up live SQLite database consistently before updating
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - -c
+          - |
+            import os, sqlite3, datetime
+            os.umask(0o077)
+            stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+            with sqlite3.connect('file:/var/lib/africa-exchange/exchange.db?mode=ro', uri=True) as source:
+                with sqlite3.connect('/var/backups/africa-exchange/exchange-' + stamp + '.db') as target:
+                    source.backup(target)
+      when: existing_database.stat.exists
     - name: Pull application source
       ansible.builtin.git:
         repo: '{{ exchange_repo }}'
@@ -29,6 +53,11 @@
         version: '{{ exchange_ref }}'
         force: false
       notify: Restart exchange
+    - name: Check pulled Python source before changing service
+      ansible.builtin.command:
+        argv: [/usr/bin/python3, -c, "from pathlib import Path; [compile(p.read_bytes(), str(p), 'exec') for p in Path('.').rglob('*.py')]"]
+        chdir: '{{ exchange_root }}'
+      changed_when: false
     - name: Create durable data directory
       ansible.builtin.file:
         path: /var/lib/africa-exchange
@@ -111,6 +140,12 @@
       until: app_health.status == 200 and app_health.json.ok | default(false)
       retries: 10
       delay: 2
+    - name: Check new provider controls are available
+      ansible.builtin.uri:
+        url: http://127.0.0.1:{{ exchange_port }}/api/provider-status
+        return_content: true
+      register: provider_health
+      failed_when: provider_health.status != 200 or provider_health.json.enabled is not defined
     - name: Issue certificate after DNS points at this host
       ansible.builtin.command: certbot --nginx --non-interactive --agree-tos --redirect -m {{ tls_email }} -d {{ exchange_domain }}
       when: tls_email is defined

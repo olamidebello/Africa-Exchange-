@@ -1,0 +1,3 @@
+---
+# Run locally on the host or with an SSH inventory. Keeps database and settings.
+- import_playbook: deploy.yml

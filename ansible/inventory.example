@@ -1,2 +1,4 @@
 [exchange]
+# Replace with the server currently hosting exchange.africandroid.world.
+# Do not migrate the domain to another server unless explicitly intended.
 hosting.dobhrap.com ansible_user=root

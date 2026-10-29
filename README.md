@@ -95,3 +95,20 @@ Super admin → API providers & keys controls the fixed TradeNAIRA parallel-rate
 Admins can publish corrected observations, remove erroneous observations, and generate/revoke read-only client keys. Keys are shown only at creation and stored as SHA-256 hashes. Send `Authorization: Bearer KEY` to `GET /api/v1/rates`; this endpoint returns published observations, including history, not guaranteed executable or current prices. Keys do not grant administrator access. Rotate by generating a replacement, updating the client, then revoking the previous key.
 
 Deploy the updated checkout using the existing installer, restart `africa-exchange`, sign in, enable TradeNAIRA refresh, and save. Scheduling runs inside the application while the service is running. Provider settings and API keys persist in the existing database. Additional commercial providers require separate adapters and provider-specific authentication support.
+
+
+## Pull and deploy updates with Ansible
+
+Run on the server currently hosting `exchange.africandroid.world`:
+
+```sh
+cd /opt/africa-exchange
+git pull --ff-only origin main
+sudo ansible-playbook -i ansible/inventory.local.ini ansible/pull-deploy.yml -e tls_email=dobcalldemo@gmail.com
+```
+
+For a first install, `sudo bash scripts/install.sh` installs Ansible and runs the same deployment tasks. For remote deployment, copy `ansible/inventory.example`, set the actual current hosting server, and run `ansible-playbook -i YOUR_INVENTORY ansible/pull-deploy.yml -e tls_email=dobcalldemo@gmail.com`.
+
+The playbook pulls `main` without overwriting local changes, creates a consistent private SQLite backup under `/var/backups/africa-exchange/`, checks Python syntax, preserves accounts/provider settings/API key hashes, restarts the service when source changes, validates Nginx, and checks application and provider-control endpoints. Supplying `tls_email` also provisions/verifies HTTPS; ensure DNS points at this host first. Backups contain sensitive application data; retain them according to your backup policy. Deployment does not automatically restore a backup after failure.
+
+After deployment, sign in as super admin and enable TradeNAIRA automatic refresh in **API providers & keys**. Provider settings are preserved during subsequent deployments. A missing parallel quote remains unavailable rather than using an official rate.
